@@ -4,6 +4,7 @@ import { genrateToken } from "../lib/generateToken.js";
 export const register = async (req, res) => {
   try {
     const { email, username, password } = req.body;
+    console.log(req.body);
     if (!username || !email || !password) {
       return res.status(400).json({ error: "Missing required fields" });
     }
@@ -27,8 +28,9 @@ export const register = async (req, res) => {
 
     const user = new User({ username, email, password, profileImage });
     await user.save();
+    const safedUser = { email: user.email, username: user.username, _id: user._id, profileImage: user.profileImage };
     const token = genrateToken(user._id);
-    res.status(201).json({ user, token });
+    res.status(201).json({ user: safedUser, token });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: "Internal server error" });
@@ -41,22 +43,22 @@ export const login = async (req, res) => {
     const { email, password } = req.body;
     console.log(email, password);
     if (!email || !password) {
-      return res.status(400).json({ error: "Missing required fields" });
+      return res.status(400).json({ error: "Missing required fields", success: false });
     }
 
     const user = await User.findOne({ email });
     if (!user) {
-      return res.status(400).json({ error: "User not found" });
+      return res.status(400).json({ error: "User not found", success: false });
     }
 
     const isPasswordValid = await user.comparePassword(password);
     if (!isPasswordValid) {
-      return res.status(400).json({ error: "Invalid password" });
+      return res.status(400).json({ error: "Invalid password", success: false });
     }
 
     const token = genrateToken(user._id);
-
-    return res.json({ user, token });
+    const safedUser = { email: user.email, username: user.username, _id: user._id, profileImage: user.profileImage };
+    return res.json({ user: safedUser, token });
   } catch (error) {
     console.log(error);
     return res.status(500).json({ error: "Internal server error" });

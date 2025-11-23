@@ -6,13 +6,13 @@ import {
   getReommedBook,
 } from "../controller/book.controller.js";
 import { isAuth } from "../middleware/isAuth.middleware.js";
-import upload from "../middleware/multer.js";
+// import upload from "../middleware/multer.js";
 
 const router = express.Router();
 
 router.get("/get", isAuth, getBook);
 router.get("/getReommedBook", isAuth, getReommedBook);
-router.post("/create", isAuth, upload.single("image"), createBook);
+router.post("/create", isAuth, createBook);
 router.delete("/delete/:id", isAuth, deleteBook);
 
 export default router;

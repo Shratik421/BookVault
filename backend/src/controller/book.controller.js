@@ -1,57 +1,59 @@
 import Book from "../models/Book.model.js";
 import { genrateToken } from "../lib/generateToken.js";
 import { uploadMedia, deleteMediaFromCloduinary } from "../lib/cloudinary.js";
-import { bufferToDataURI } from "../lib/datauri.js";
+// import { bufferToDataURI } from "../lib/datauri.js";
 
 export const createBook = async (req, res) => {
   try {
     const userId = req.user._id;
-    const { title, caption, rating } = req.body;
-    const file = req.file;
-    console.log("file", file);
-    if (!title || !caption || !rating)
-      return res.status(400).json({ error: "Missing required fields" });
+    console.log("req.body in createBook:", req.body);
+    const { title, caption, rating, image } = req.body;
 
-    const fileDataURI = bufferToDataURI(file);
-    console.log("fileDataURI", fileDataURI);
-    let uploadResponse = await uploadMedia(fileDataURI);
-    console.log("uploadResponse", uploadResponse);
+    if (!title || !caption || !rating || !image) {
+      return res.status(400).json({ error: "Missing required fields" });
+    }
+
+    // image = data:image/jpeg;base64,....
+    const uploadResponse = await uploadMedia(image);
 
     const book = new Book({
       title,
       caption,
       rating,
-      image: uploadResponse?.secure_url,
+      image: uploadResponse.secure_url,
       user: userId,
     });
+
     await book.save();
+
     return res.status(201).json({ book });
   } catch (error) {
-    console.log(error);
+    console.log("createBook error:", error);
     return res.status(500).json({ error: "Internal server error" });
   }
 };
+
 
 //pagination infiinte loading
 export const getBook = async (req, res) => {
   try {
     const page = req.query.page || 1;
-    const skip = 5;
-    const limit = req.query.limit || 10;
-    const totalBooks = await Book.countDocuments();
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
     const books = await Book.find()
       .sort({ createdAt: -1 })
-      .skip(5)
-      .limit(parseInt(limit))
-      .populate({ path: "user", select: "username" });
+      .skip(skip)
+      .limit(limit)
+      .populate({ path: "user", select: "username profileImage" });
+
+    const totalBooks = await Book.countDocuments();
+
     return res.status(200).json({
       books,
-      pagination: {
-        skip,
-        limit,
-        totalBooks,
-        totalPage: Math.ceil(totalBooks / limit),
-      },
+      currentPage: page,
+      totalBooks,
+      totalPages: Math.ceil(totalBooks / limit),
     });
   } catch (error) {
     console.log("error : ", error);
@@ -59,15 +61,16 @@ export const getBook = async (req, res) => {
   }
 };
 
+// get recommended books by the logged in user
 export const getReommedBook = async (req, res) => {
-    try {
-        const userId = req.user._id;
-        const books = await Book.find({ user: userId });
-        return res.status(200).json({ books });
-     } catch (error) {
-        console.log("error : ", error);
-        return res.status(500).json({ error: "Internal server error" });
-    }
+  try {
+    const userId = req.user._id;
+    const books = await Book.find({ user: userId }).sort({ createdAt: -1 });
+    return res.status(200).json({ books });
+  } catch (error) {
+    console.log("error : ", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
 }
 
 
@@ -81,11 +84,11 @@ export const deleteBook = async (req, res) => {
     const bookexists = await Book.find({ bookId, user: userId });
     if (!bookexists) {
       return res.status(404).json({ error: "Book not found or not authorized" });
-      }
-    
-      if (bookexists._id) {
-          await deleteMediaFromCloduinary(bookexists.image);
-      }
+    }
+
+    if (bookexists._id) {
+      await deleteMediaFromCloduinary(bookexists.image);
+    }
 
     const book = await Book.findByIdAndDelete();
     if (!book) {
